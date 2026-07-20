@@ -155,12 +155,13 @@
     border:3px solid var(--violet-600);cursor:pointer}
 
   /* Assist buttons */
-  .assist{display:flex;gap:8px;margin-top:6px}
-  .assist button{flex:1;min-height:46px;border-radius:11px;border:1px solid var(--border);background:var(--bg-2);
+  .assist{display:flex;gap:8px;margin-top:6px;flex-wrap:wrap}
+  .assist button{flex:1;min-width:80px;min-height:46px;border-radius:11px;border:1px solid var(--border);background:var(--bg-2);
     color:var(--dim);font-family:var(--font-body);font-weight:600;font-size:.85rem;cursor:pointer;transition:.15s}
   .assist button[data-assist=assisted].on{background:rgba(251,113,133,.18);border-color:var(--red);color:#ffc4cd}
   .assist button[data-assist=partial].on{background:rgba(251,191,36,.16);border-color:var(--amber);color:#ffe6a3}
   .assist button[data-assist=independent].on{background:rgba(74,222,128,.16);border-color:var(--green);color:#bff5cf}
+  .assist button[data-mood].on{background:rgba(167,139,250,.18);border-color:var(--violet);color:#e4d9ff}
 
   /* Progress */
   .chart-wrap{margin-top:8px}
@@ -234,6 +235,7 @@
     <button class="tab" data-action="tab" data-tab="log"><span class="ti">✍️</span>Log</button>
     <button class="tab" data-action="tab" data-tab="progress"><span class="ti">📈</span>Progress</button>
     <button class="tab" data-action="tab" data-tab="schedule"><span class="ti">📅</span>Schedule</button>
+    <button class="tab" data-action="tab" data-tab="calendar"><span class="ti">📆</span>Calendar</button>
   </div>
 </nav>
 
@@ -393,6 +395,7 @@ if(!state.dayExercises) state.dayExercises = {};
 let tab = "home";
 let progSel = "all";
 let scheduleEditing = false;
+let calendarMonth = (()=>{ const d=new Date(); d.setDate(1); d.setHours(0,0,0,0); return d; })();
 
 function defaultState(){
   return {
@@ -685,6 +688,7 @@ function render(){
   else if(tab==="log") el.innerHTML = viewLog();
   else if(tab==="progress") el.innerHTML = viewProgress();
   else if(tab==="schedule") el.innerHTML = viewSchedule();
+  else if(tab==="calendar") el.innerHTML = viewCalendar();
   window.scrollTo({top:0,behavior:"instant"});
 }
 
@@ -841,6 +845,29 @@ function viewLog(){
     ${hands.length?`<div class="section-label">✋️ Hand / Arm</div>${hands.map(card).join("")}`:""}
     ${body.length?`<div class="section-label">🧘 Full Body / Balance</div>${body.map(card).join("")}`:""}
 
+    <div class="section-label">🩹 How are you feeling today? (optional)</div>
+    <div class="card">
+      ${["stiffness","swelling","fatigue"].map(k=>`
+        <div class="field" style="margin-top:${k==="stiffness"?0:14}px">
+          <div class="pain-row"><label style="margin:0;text-transform:capitalize">${k}</label><span class="pain-val" data-role="${k}val">0</span></div>
+          <input type="range" class="f-symptom" min="0" max="10" step="1" value="0" data-role="${k}">
+        </div>`).join("")}
+      <div class="field">
+        <div class="pain-row"><label style="margin:0">Balance</label><span class="pain-val" data-role="balanceval">5</span></div>
+        <input type="range" class="f-symptom" min="0" max="10" step="1" value="5" data-role="balance">
+        <p style="font-size:.72rem;color:var(--dim-2);margin-top:4px">0 = very unsteady · 10 = very steady</p>
+      </div>
+      <div class="field">
+        <label>Mood</label>
+        <div class="assist" id="moodPick">
+          <button data-mood="low">😞 Low</button>
+          <button data-mood="ok">😐 OK</button>
+          <button data-mood="good">🙂 Good</button>
+          <button data-mood="great">😄 Great</button>
+        </div>
+      </div>
+    </div>
+
     <div style="margin-top:20px">
       <button class="btn btn-primary" data-action="save-session">💾 Save session</button>
     </div>
@@ -987,6 +1014,76 @@ function viewSchedule(){
   `;
 }
 
+function dayStatus(dateObj, todayISOStr){
+  const iso = isoOf(dateObj);
+  if(hasSessionOn(iso)) return "done";
+  const plan = getSchedule()[dateObj.getDay()] || "rest";
+  if(plan==="rest") return "rest";
+  if(iso===todayISOStr) return "today";
+  if(iso>todayISOStr) return "future";
+  return "missed";
+}
+const CAL_STATUS_STYLE = {
+  done:    { fg:"var(--green)",  ring:"var(--green)",  filled:true  },
+  rest:    { fg:"var(--dim-2)",  ring:"var(--border-strong)", filled:false },
+  today:   { fg:"var(--text)",   ring:"var(--violet)", filled:false },
+  missed:  { fg:"var(--red)",    ring:"var(--red)",    filled:false },
+  future:  { fg:"var(--dim-2)",  ring:"transparent",   filled:false }
+};
+
+function viewCalendar(){
+  const todayStr = todayISO();
+  const y = calendarMonth.getFullYear(), m = calendarMonth.getMonth();
+  const monthLabel = calendarMonth.toLocaleDateString("en-US",{month:"long",year:"numeric"});
+  const firstOfMonth = new Date(y,m,1);
+  const daysInMonth = new Date(y,m+1,0).getDate();
+  const leadOffset = (firstOfMonth.getDay()+6)%7; // Monday-first offset
+
+  let cells = "";
+  for(let i=0;i<leadOffset;i++) cells += `<div></div>`;
+  for(let d=1; d<=daysInMonth; d++){
+    const dateObj = new Date(y,m,d);
+    const iso = isoOf(dateObj);
+    const status = dayStatus(dateObj, todayStr);
+    const st = CAL_STATUS_STYLE[status];
+    const isToday = iso===todayStr;
+    cells += `
+      <button class="del" data-action="cal-day" data-iso="${iso}" data-weekday="${dateObj.getDay()}" data-status="${status}"
+        style="width:100%;aspect-ratio:1;height:auto;border-radius:10px;flex-direction:column;gap:2px;
+        border-color:${st.ring};${isToday?"box-shadow:0 0 0 1px var(--violet);":""}
+        ${st.filled?`background:rgba(74,222,128,.16);`:""}">
+        <span style="font-size:.8rem;font-weight:${isToday?700:500};color:${st.filled?"var(--green)":isToday?"var(--text)":"var(--dim)"}">${d}</span>
+        ${status==="done"?`<span style="width:5px;height:5px;border-radius:50%;background:var(--green)"></span>`:""}
+      </button>`;
+  }
+
+  return `
+    <p class="view-title">Calendar</p>
+    <p class="view-sub">Tap a day to see what was done — or what's planned.</p>
+
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <button class="icon-btn" data-action="cal-prev" aria-label="Previous month">‹</button>
+        <div style="font-family:var(--font-display);font-weight:700">${monthLabel}</div>
+        <button class="icon-btn" data-action="cal-next" aria-label="Next month">›</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:8px">
+        ${DAY_SHORT.slice(1).concat(DAY_SHORT[0]).map(d=>`<div style="text-align:center;font-size:.68rem;color:var(--dim-2);font-weight:600">${d}</div>`).join("")}
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px">${cells}</div>
+    </div>
+
+    <div class="legend" style="margin-top:16px;flex-wrap:wrap">
+      <span><i class="lg-dot" style="background:var(--green)"></i>Completed</span>
+      <span><i class="lg-dot" style="background:var(--dim-2)"></i>Rest day</span>
+      <span><i class="lg-dot" style="background:var(--red)"></i>Missed</span>
+      <span><i class="lg-dot" style="background:var(--violet)"></i>Today</span>
+    </div>
+
+    <p class="disclaimer">"Missed" just means no session was logged that day — not a judgment. Life happens.</p>
+  `;
+}
+
 let currentDayIdx = null;
 let dayCustomizing = false;
 
@@ -1067,7 +1164,16 @@ function openSession(sessionId){
   if(!s) return;
   document.getElementById("sessionTitle").textContent = longDate(parseISO(s.date));
   const list = document.getElementById("sessionList");
-  list.innerHTML = `<div class="card" style="padding:6px 14px">
+  const MOOD_LABEL = { low:"😞 Low", ok:"😐 OK", good:"🙂 Good", great:"😄 Great" };
+  const symptomsHtml = s.symptoms ? `
+    <div class="card" style="margin-bottom:12px">
+      <div class="section-label" style="margin:0 0 8px">🩹 How they felt</div>
+      <p style="font-size:.85rem;color:var(--dim);line-height:1.7">
+        Stiffness ${s.symptoms.stiffness}/10 · Swelling ${s.symptoms.swelling}/10 · Fatigue ${s.symptoms.fatigue}/10 · Balance ${s.symptoms.balance}/10
+        ${s.symptoms.mood ? `<br>Mood: ${MOOD_LABEL[s.symptoms.mood]||s.symptoms.mood}` : ""}
+      </p>
+    </div>` : "";
+  list.innerHTML = symptomsHtml + `<div class="card" style="padding:6px 14px">
     ${s.entries.map(en=>{
       const ex = state.exercises.find(x=>x.id===en.exerciseId);
       const assistLabel = (ASSIST[en.assist]||{}).label || en.assist;
@@ -1090,6 +1196,10 @@ document.addEventListener("click", e=>{
 
   const limbBtn = e.target.closest("#limbPick button, #editLimbPick button");
   if(limbBtn){ limbBtn.parentElement.querySelectorAll("button").forEach(b=>b.classList.remove("active")); limbBtn.classList.add("active"); return; }
+
+  const moodBtn = e.target.closest("#moodPick button");
+  if(moodBtn){ moodBtn.parentElement.querySelectorAll("button").forEach(b=>b.classList.remove("on"));
+    moodBtn.classList.add("on"); moodBtn.parentElement.dataset.mood=moodBtn.dataset.mood; return; }
 
   const asBtn = e.target.closest(".assist button");
   if(asBtn){ const card=asBtn.closest(".log-card"); card.querySelectorAll(".assist button").forEach(b=>b.classList.remove("on"));
@@ -1117,6 +1227,13 @@ document.addEventListener("click", e=>{
   else if(a==="cancel-customize-day"){ dayCustomizing = false; renderDayView(); }
   else if(a==="save-customize-day"){ saveCustomizeDay(); }
   else if(a==="clear-customize-day"){ clearCustomizeDay(currentDayIdx); }
+  else if(a==="cal-prev"){ calendarMonth.setMonth(calendarMonth.getMonth()-1); render(); }
+  else if(a==="cal-next"){ calendarMonth.setMonth(calendarMonth.getMonth()+1); render(); }
+  else if(a==="cal-day"){
+    if(t.dataset.status==="done"){ openSession(sessionsOn(t.dataset.iso)[0].id); }
+    else if(t.dataset.status==="rest"){ toast("Rest day — nothing scheduled"); }
+    else { openDay(+t.dataset.weekday); }
+  }
   else if(a==="close-session"){ closeSession(); }
   else if(a==="save-session"){ saveSession(); }
   else if(a==="open-settings"){ openSettings(); }
@@ -1138,6 +1255,11 @@ document.addEventListener("input", e=>{
     const v=e.target.value;
     const lbl=card.querySelector('[data-role="painval"]');
     lbl.textContent=v; lbl.style.color=painColor(+v);
+  }
+  if(e.target.classList.contains("f-symptom")){
+    const field=e.target.closest(".field");
+    const lbl=field.querySelector('[data-role$="val"]');
+    if(lbl) lbl.textContent = e.target.value;
   }
 });
 
@@ -1274,7 +1396,18 @@ function saveSession(){
     });
   });
   if(!entries.length){ toast("Check at least one exercise"); return; }
-  state.sessions.push({ id:uid(), date, entries });
+
+  const symptomVal = role => { const el=document.querySelector(`.f-symptom[data-role="${role}"]`); return el ? parseInt(el.value)||0 : 0; };
+  const moodPick = document.getElementById("moodPick");
+  const symptoms = {
+    stiffness: symptomVal("stiffness"),
+    swelling: symptomVal("swelling"),
+    fatigue: symptomVal("fatigue"),
+    balance: symptomVal("balance"),
+    mood: (moodPick && moodPick.dataset.mood) || ""
+  };
+
+  state.sessions.push({ id:uid(), date, entries, symptoms });
   persist();
   tab="home"; render(); toast("Session saved 👍");
 }
@@ -1318,6 +1451,23 @@ function exportHTMLReport(){
       <td>${escapeHtml((ASSIST[en.assist]||{}).label||en.assist)}</td>
     </tr>`).join("")).join("");
 
+  const MOOD_LABEL = { low:"Low", ok:"OK", good:"Good", great:"Great" };
+  const symptomSessions = sessions.filter(s=>s.symptoms);
+  const symptomRowsHtml = symptomSessions.map(s => `
+    <tr>
+      <td>${escapeHtml(s.date)}</td>
+      <td>${s.symptoms.stiffness}</td>
+      <td>${s.symptoms.swelling}</td>
+      <td>${s.symptoms.fatigue}</td>
+      <td>${s.symptoms.balance}</td>
+      <td>${escapeHtml(MOOD_LABEL[s.symptoms.mood]||"—")}</td>
+    </tr>`).join("");
+
+  const allPain = sessions.flatMap(s=>s.entries.map(en=>en.pain));
+  const avgPain = allPain.length ? Math.round((allPain.reduce((a,b)=>a+b,0)/allPain.length)*10)/10 : null;
+  const firstPain = sessions.length ? Math.round((sessions[0].entries.reduce((a,en)=>a+en.pain,0)/(sessions[0].entries.length||1))*10)/10 : null;
+  const lastPain = sessions.length ? Math.round((sessions[sessions.length-1].entries.reduce((a,en)=>a+en.pain,0)/(sessions[sessions.length-1].entries.length||1))*10)/10 : null;
+
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1345,11 +1495,19 @@ function exportHTMLReport(){
     <div class="stat"><div class="n">${streak}</div><div class="l">day streak</div></div>
     <div class="stat"><div class="n">${sessions.length}</div><div class="l">total sessions</div></div>
     <div class="stat"><div class="n">${state.exercises.length}</div><div class="l">exercises</div></div>
+    ${avgPain!==null ? `<div class="stat"><div class="n">${avgPain}/10</div><div class="l">average pain</div></div>` : ""}
+    ${(firstPain!==null && lastPain!==null && sessions.length>1) ? `<div class="stat"><div class="n">${firstPain} → ${lastPain}</div><div class="l">pain: first → latest session</div></div>` : ""}
   </div>
   <table>
     <thead><tr><th>Date</th><th>Exercise</th><th>Limb</th><th>Sets</th><th>Reps</th><th>Pain (0-10)</th><th>Assistance</th></tr></thead>
     <tbody>${rowsHtml || `<tr><td colspan="7">No sessions logged yet.</td></tr>`}</tbody>
   </table>
+  ${symptomSessions.length ? `
+  <h1 style="font-size:1.1rem;margin-top:32px">Symptom log</h1>
+  <table>
+    <thead><tr><th>Date</th><th>Stiffness</th><th>Swelling</th><th>Fatigue</th><th>Balance</th><th>Mood</th></tr></thead>
+    <tbody>${symptomRowsHtml}</tbody>
+  </table>` : ""}
   <p class="disclaimer">This report tracks exercises set by the patient's doctor or physical therapist. It does not provide medical advice and does not replace a prescribed recovery program.</p>
 </body>
 </html>`;
