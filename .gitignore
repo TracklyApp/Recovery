@@ -1,0 +1,7 @@
+# Personal data exports — don't publish your own backups
+recovery-backup-*.json
+recovery-history-*.csv
+recovery-report-*.html
+
+# Local Claude Code settings
+.claude/

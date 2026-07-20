@@ -1,0 +1,14 @@
+{
+  "name": "Recovery",
+  "short_name": "Recovery",
+  "description": "A single-file exercise recovery journal — leg, hand/arm, and full-body program tracking with a weekly planner.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#171021",
+  "theme_color": "#171021",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
