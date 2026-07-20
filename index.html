@@ -236,6 +236,8 @@
     <button class="tab" data-action="tab" data-tab="progress"><span class="ti">📈</span>Progress</button>
     <button class="tab" data-action="tab" data-tab="schedule"><span class="ti">📅</span>Schedule</button>
     <button class="tab" data-action="tab" data-tab="calendar"><span class="ti">📆</span>Calendar</button>
+    <button class="tab" data-action="tab" data-tab="goals"><span class="ti">🎯</span>Goals</button>
+    <button class="tab" data-action="tab" data-tab="measure"><span class="ti">📏</span>Measure</button>
   </div>
 </nav>
 
@@ -392,6 +394,9 @@ function persist(){
 let state = load() || defaultState();
 if(!state.schedule) state.schedule = {1:"full",2:"full",3:"mobility",4:"full",5:"full",6:"walking",0:"rest"};
 if(!state.dayExercises) state.dayExercises = {};
+if(!state.phases) state.phases = [];
+if(!state.goals) state.goals = [];
+if(!state.measurements) state.measurements = [];
 let tab = "home";
 let progSel = "all";
 let scheduleEditing = false;
@@ -464,7 +469,10 @@ function defaultState(){
     sessions: [],
     settings: { license:"" },
     schedule: {1:"full",2:"full",3:"mobility",4:"full",5:"full",6:"walking",0:"rest"},
-    dayExercises: {}
+    dayExercises: {},
+    phases: [],
+    goals: [],
+    measurements: []
   };
 }
 
@@ -689,6 +697,8 @@ function render(){
   else if(tab==="progress") el.innerHTML = viewProgress();
   else if(tab==="schedule") el.innerHTML = viewSchedule();
   else if(tab==="calendar") el.innerHTML = viewCalendar();
+  else if(tab==="goals") el.innerHTML = viewGoals();
+  else if(tab==="measure") el.innerHTML = viewMeasure();
   window.scrollTo({top:0,behavior:"instant"});
 }
 
@@ -1084,6 +1094,164 @@ function viewCalendar(){
   `;
 }
 
+const PHASE_STATUSES = ["Not started","Active","Completed"];
+const PHASE_STATUS_COLOR = { "Not started":"var(--dim-2)", "Active":"var(--violet)", "Completed":"var(--green)" };
+
+function viewGoals(){
+  const phases = state.phases;
+  const goals = state.goals;
+
+  const phaseCard = p => `
+    <div class="card" style="margin-bottom:10px">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
+        <div>
+          <div style="font-weight:700;font-family:var(--font-display)">${escapeHtml(p.name)}</div>
+          <div style="color:var(--dim);font-size:.82rem;margin-top:2px">${p.startDate?shortDate(p.startDate):"?"} → ${p.endDate?shortDate(p.endDate):"ongoing"}</div>
+        </div>
+        <button class="del" data-action="del-phase" data-id="${p.id}" aria-label="Delete">✕</button>
+      </div>
+      <div class="field" style="margin-top:12px">
+        <select class="phase-status-select" data-id="${p.id}">
+          ${PHASE_STATUSES.map(s=>`<option value="${s}" ${s===p.status?"selected":""}>${s}</option>`).join("")}
+        </select>
+      </div>
+      ${p.notes ? `<p style="font-size:.85rem;color:var(--dim);margin-top:10px;line-height:1.5">${escapeHtml(p.notes)}</p>` : ""}
+    </div>`;
+
+  const goalCard = g => {
+    const total = g.milestones.length;
+    const done = g.milestones.filter(m=>m.done).length;
+    const pct = total ? Math.round((done/total)*100) : 0;
+    return `
+    <div class="card" style="margin-bottom:10px">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
+        <div>
+          <div style="font-weight:700;font-family:var(--font-display)">${escapeHtml(g.title)}</div>
+          ${g.targetDate ? `<div style="color:var(--dim);font-size:.82rem;margin-top:2px">Target: ${shortDate(g.targetDate)}</div>` : ""}
+        </div>
+        <button class="del" data-action="del-goal" data-id="${g.id}" aria-label="Delete">✕</button>
+      </div>
+      <div style="margin-top:12px;background:var(--bg-2);border-radius:20px;height:8px;overflow:hidden">
+        <div style="width:${pct}%;height:100%;background:linear-gradient(90deg,var(--violet),var(--orange));border-radius:20px"></div>
+      </div>
+      <div style="color:var(--dim);font-size:.78rem;margin-top:6px">${done} of ${total} milestone${total!==1?"s":""} · ${pct}%</div>
+      ${g.milestones.map(m=>`
+        <div class="ex-row">
+          <label style="display:flex;align-items:center;gap:12px;flex:1;cursor:pointer;min-width:0">
+            <input type="checkbox" class="milestone-check" data-goal="${g.id}" data-milestone="${m.id}" ${m.done?"checked":""} style="width:20px;height:20px;flex-shrink:0">
+            <div class="ex-name" style="${m.done?"text-decoration:line-through;color:var(--dim-2)":""}">${escapeHtml(m.text)}</div>
+          </label>
+          <button class="del" data-action="del-milestone" data-goal="${g.id}" data-milestone="${m.id}" aria-label="Delete milestone">✕</button>
+        </div>`).join("")}
+      <div class="field" style="margin-top:10px;display:flex;gap:8px">
+        <input type="text" class="milestone-input" data-goal="${g.id}" placeholder="Add milestone…" autocomplete="off" style="flex:1">
+        <button class="btn btn-ghost sm" data-action="add-milestone" data-goal="${g.id}">Add</button>
+      </div>
+    </div>`;
+  };
+
+  return `
+    <p class="view-title">Goals</p>
+    <p class="view-sub">Recovery phases and the milestones you're working toward.</p>
+
+    <div class="section-label">🗂️ Recovery Phases</div>
+    ${phases.length ? phases.map(phaseCard).join("") : `<div class="card"><p style="color:var(--dim-2);font-size:.9rem">No phases yet. Add one below.</p></div>`}
+    <div class="card">
+      <div class="field" style="margin-top:0"><label for="newPhaseName">Phase name</label><input type="text" id="newPhaseName" placeholder="e.g. Phase 1 — Early mobility" autocomplete="off"></div>
+      <div class="two" style="margin-top:14px">
+        <div class="field" style="margin-top:0"><label for="newPhaseStart">Start date</label><input type="date" id="newPhaseStart"></div>
+        <div class="field" style="margin-top:0"><label for="newPhaseEnd">End date (optional)</label><input type="date" id="newPhaseEnd"></div>
+      </div>
+      <div class="field"><label for="newPhaseNotes">Notes (optional)</label><textarea id="newPhaseNotes" rows="2" placeholder="Focus, precautions, therapist guidance…" style="width:100%;min-height:64px;background:var(--bg-2);border:1px solid var(--border);border-radius:12px;color:var(--text);font-family:var(--font-body);font-size:1rem;padding:12px 14px;resize:vertical"></textarea></div>
+      <div style="margin-top:16px"><button class="btn btn-primary" data-action="add-phase">Add phase</button></div>
+    </div>
+
+    <div class="section-label" style="margin-top:30px">🎯 Goals & Milestones</div>
+    ${goals.length ? goals.map(goalCard).join("") : `<div class="card"><p style="color:var(--dim-2);font-size:.9rem">No goals yet. Add one below.</p></div>`}
+    <div class="card">
+      <div class="field" style="margin-top:0"><label for="newGoalTitle">Goal</label><input type="text" id="newGoalTitle" placeholder="e.g. Walk 10 minutes unassisted" autocomplete="off"></div>
+      <div class="field"><label for="newGoalDate">Target date (optional)</label><input type="date" id="newGoalDate"></div>
+      <div style="margin-top:16px"><button class="btn btn-primary" data-action="add-goal">Add goal</button></div>
+    </div>
+
+    <p class="disclaimer">Set phases and goals together with your doctor or physical therapist — they know your recovery timeline best.</p>
+  `;
+}
+
+const MEASURE_METRICS = {
+  rom: { label:"Range of Motion", unit:"degrees", color:"var(--violet)" },
+  grip: { label:"Grip Strength", unit:"kg", color:"var(--orange)" },
+  walk_dist: { label:"Walking Distance", unit:"meters", color:"var(--green)" },
+  walk_time: { label:"Walking Time", unit:"minutes", color:"var(--amber)" },
+  balance: { label:"Balance Time", unit:"seconds", color:"var(--red)" },
+  strength: { label:"Strength Level", unit:"/10", color:"var(--violet)" },
+  custom: { label:"Custom", unit:"", color:"var(--dim)" }
+};
+
+function viewMeasure(){
+  const byMetric = {};
+  state.measurements.forEach(m=>{
+    const key = m.metric==="custom" ? "custom:"+m.customName : m.metric;
+    if(!byMetric[key]) byMetric[key]=[];
+    byMetric[key].push(m);
+  });
+  Object.values(byMetric).forEach(list=>list.sort((a,b)=> a.date<b.date?-1:a.date>b.date?1:0));
+
+  const metricSection = (key, list) => {
+    const isCustom = key.startsWith("custom:");
+    const info = isCustom ? { label:list[0].customName, unit:list[0].unit||"", color:"var(--dim)" } : MEASURE_METRICS[key];
+    const chartData = list.map(m=>({label:shortDate(m.date), value:m.value}));
+    const latest = list[list.length-1];
+    return `
+      <div class="section-label">${info.label}</div>
+      <div class="card">
+        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px">
+          <span style="font-family:var(--font-display);font-weight:700;font-size:1.5rem">${latest.value}${info.unit?" "+info.unit:""}</span>
+          <span style="color:var(--dim);font-size:.82rem">latest · ${shortDate(latest.date)}</span>
+        </div>
+        ${chartData.length>1 ? `<div class="chart-wrap">${lineChart(chartData,{color:info.color,gid:"m"+key.replace(/[^a-z0-9]/gi,"")})}</div>` : ""}
+        <div style="margin-top:12px">
+          ${list.slice().reverse().map(m=>`
+            <div class="ex-row">
+              <div class="ex-name">${shortDate(m.date)} — ${m.value}${info.unit?" "+info.unit:""}${m.notes?` <span style="color:var(--dim-2)">· ${escapeHtml(m.notes)}</span>`:""}</div>
+              <button class="del" data-action="del-measurement" data-id="${m.id}" aria-label="Delete">✕</button>
+            </div>`).join("")}
+        </div>
+      </div>`;
+  };
+
+  return `
+    <p class="view-title">Measurements</p>
+    <p class="view-sub">Track objective recovery metrics over time.</p>
+
+    ${Object.keys(byMetric).length ? Object.keys(byMetric).map(k=>metricSection(k,byMetric[k])).join("") :
+      `<div class="empty"><div class="em">📏</div><p>Log your first measurement below to see it tracked over time.</p></div>`}
+
+    <div class="section-label">➕ Log a measurement</div>
+    <div class="card">
+      <div class="field" style="margin-top:0">
+        <label for="newMeasureMetric">Metric</label>
+        <select id="newMeasureMetric">
+          ${Object.keys(MEASURE_METRICS).map(k=>`<option value="${k}">${MEASURE_METRICS[k].label}</option>`).join("")}
+        </select>
+      </div>
+      <div class="field" id="customMetricNameField" style="display:none">
+        <label for="newMeasureCustomName">Custom metric name</label>
+        <input type="text" id="newMeasureCustomName" placeholder="e.g. Stairs climbed" autocomplete="off">
+      </div>
+      <div class="two" style="margin-top:14px">
+        <div class="field" style="margin-top:0"><label for="newMeasureValue">Value</label><input type="number" id="newMeasureValue" inputmode="decimal"></div>
+        <div class="field" style="margin-top:0"><label for="newMeasureUnit">Unit</label><input type="text" id="newMeasureUnit" placeholder="degrees, kg…" autocomplete="off"></div>
+      </div>
+      <div class="field"><label for="newMeasureDate">Date</label><input type="date" id="newMeasureDate" value="${todayISO()}" max="${todayISO()}"></div>
+      <div class="field"><label for="newMeasureNotes">Notes (optional)</label><input type="text" id="newMeasureNotes" placeholder="Context…" autocomplete="off"></div>
+      <div style="margin-top:16px"><button class="btn btn-primary" data-action="add-measurement">Log measurement</button></div>
+    </div>
+
+    <p class="disclaimer">Self-measured values are approximate — for clinical accuracy, have your therapist confirm.</p>
+  `;
+}
+
 let currentDayIdx = null;
 let dayCustomizing = false;
 
@@ -1236,6 +1404,14 @@ document.addEventListener("click", e=>{
   }
   else if(a==="close-session"){ closeSession(); }
   else if(a==="save-session"){ saveSession(); }
+  else if(a==="add-phase"){ addPhase(); }
+  else if(a==="del-phase"){ delPhase(t.dataset.id); }
+  else if(a==="add-goal"){ addGoal(); }
+  else if(a==="del-goal"){ delGoal(t.dataset.id); }
+  else if(a==="add-milestone"){ addMilestone(t.dataset.goal); }
+  else if(a==="del-milestone"){ delMilestone(t.dataset.goal, t.dataset.milestone); }
+  else if(a==="add-measurement"){ addMeasurement(); }
+  else if(a==="del-measurement"){ delMeasurement(t.dataset.id); }
   else if(a==="open-settings"){ openSettings(); }
   else if(a==="close-settings"){ closeSettings(); }
   else if(a==="export-csv"){ exportCSV(); }
@@ -1269,6 +1445,21 @@ document.addEventListener("change", e=>{
     const day = +e.target.dataset.day;
     state.schedule = {...getSchedule(), [day]: e.target.value};
     persist(); render();
+  }
+  if(e.target.classList.contains("phase-status-select")){
+    const phase = state.phases.find(p=>p.id===e.target.dataset.id);
+    if(phase){ phase.status = e.target.value; persist(); }
+  }
+  if(e.target.classList.contains("milestone-check")){
+    const goal = state.goals.find(g=>g.id===e.target.dataset.goal);
+    const ms = goal && goal.milestones.find(m=>m.id===e.target.dataset.milestone);
+    if(ms){ ms.done = e.target.checked; persist(); render(); }
+  }
+  if(e.target.id==="newMeasureMetric"){
+    const isCustom = e.target.value==="custom";
+    document.getElementById("customMetricNameField").style.display = isCustom ? "" : "none";
+    const unitField = document.getElementById("newMeasureUnit");
+    if(!isCustom) unitField.value = MEASURE_METRICS[e.target.value].unit;
   }
 });
 
@@ -1652,6 +1843,70 @@ function seedDemo(){
 function resetAll(){
   if(!confirm("Delete all exercises and sessions? This action cannot be undone.")) return;
   state=defaultState(); persist(); closeSettings(); tab="home"; render(); toast("Deleted");
+}
+
+/* ---------- Phases ---------- */
+function addPhase(){
+  const name=(document.getElementById("newPhaseName").value||"").trim();
+  if(!name){ toast("Enter a phase name"); return; }
+  const startDate=document.getElementById("newPhaseStart").value;
+  const endDate=document.getElementById("newPhaseEnd").value;
+  const notes=(document.getElementById("newPhaseNotes").value||"").trim();
+  state.phases.push({ id:uid(), name, startDate, endDate, notes, status:"Not started" });
+  persist(); render(); toast("Phase added");
+}
+function delPhase(id){
+  state.phases=state.phases.filter(p=>p.id!==id);
+  persist(); render();
+}
+
+/* ---------- Goals & milestones ---------- */
+function addGoal(){
+  const title=(document.getElementById("newGoalTitle").value||"").trim();
+  if(!title){ toast("Enter a goal"); return; }
+  const targetDate=document.getElementById("newGoalDate").value;
+  state.goals.push({ id:uid(), title, targetDate, milestones:[] });
+  persist(); render(); toast("Goal added");
+}
+function delGoal(id){
+  state.goals=state.goals.filter(g=>g.id!==id);
+  persist(); render();
+}
+function addMilestone(goalId){
+  const input=document.querySelector(`.milestone-input[data-goal="${goalId}"]`);
+  const text=(input.value||"").trim();
+  if(!text){ toast("Enter a milestone"); return; }
+  const goal=state.goals.find(g=>g.id===goalId);
+  if(!goal) return;
+  goal.milestones.push({ id:uid(), text, done:false });
+  persist(); render(); toast("Milestone added");
+}
+function delMilestone(goalId, milestoneId){
+  const goal=state.goals.find(g=>g.id===goalId);
+  if(!goal) return;
+  goal.milestones=goal.milestones.filter(m=>m.id!==milestoneId);
+  persist(); render();
+}
+
+/* ---------- Measurements ---------- */
+function addMeasurement(){
+  const metric=document.getElementById("newMeasureMetric").value;
+  const isCustom=metric==="custom";
+  const customName=(document.getElementById("newMeasureCustomName").value||"").trim();
+  if(isCustom && !customName){ toast("Enter a name for the custom metric"); return; }
+  const value=parseFloat(document.getElementById("newMeasureValue").value);
+  if(isNaN(value)){ toast("Enter a value"); return; }
+  const unit=(document.getElementById("newMeasureUnit").value||"").trim();
+  const date=document.getElementById("newMeasureDate").value || todayISO();
+  const notes=(document.getElementById("newMeasureNotes").value||"").trim();
+  const m={ id:uid(), metric, value, unit, date, notes };
+  if(isCustom) m.customName=customName;
+  state.measurements.push(m);
+  persist(); render(); toast("Measurement logged");
+}
+function delMeasurement(id){
+  state.measurements=state.measurements.filter(m=>m.id!==id);
+  persist(); render();
 }
 
 /* ---------- Toast ---------- */
