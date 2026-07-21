@@ -257,6 +257,33 @@
     <button class="btn btn-primary" data-action="export-csv">📤 Export history (CSV)</button>
     <button class="btn btn-ghost" data-action="export-html" style="margin-top:10px">🖨️ Export report (HTML)</button>
 
+    <div class="section-label" style="margin-top:22px">👨‍⚕️ Therapist / Doctor</div>
+    <div class="field" style="margin-top:0">
+      <label for="therapistName">Name</label>
+      <input type="text" id="therapistName" placeholder="Dr. …" autocomplete="off">
+    </div>
+    <div class="field">
+      <label for="therapistContact">Contact</label>
+      <input type="text" id="therapistContact" placeholder="Phone or email" autocomplete="off">
+    </div>
+    <div class="field">
+      <label for="therapistNotes">Instructions received</label>
+      <textarea id="therapistNotes" rows="3" placeholder="Notes from your therapist…" style="width:100%;min-height:70px;background:var(--bg-2);border:1px solid var(--border);border-radius:12px;color:var(--text);font-family:var(--font-body);font-size:1rem;padding:12px 14px;resize:vertical"></textarea>
+    </div>
+    <div class="field">
+      <label for="therapistQuestions">Questions for next visit</label>
+      <textarea id="therapistQuestions" rows="3" placeholder="What to ask next time…" style="width:100%;min-height:70px;background:var(--bg-2);border:1px solid var(--border);border-radius:12px;color:var(--text);font-family:var(--font-body);font-size:1rem;padding:12px 14px;resize:vertical"></textarea>
+    </div>
+    <div style="margin-top:10px"><button class="btn btn-ghost" data-action="save-therapist">💾 Save therapist info</button></div>
+
+    <div class="section-label" style="margin-top:22px">🔔 Reminders</div>
+    <p class="view-sub" style="margin-bottom:10px">Only fires while this app is open in a browser tab.</p>
+    <div class="field" style="margin-top:0">
+      <label for="reminderTime">Daily exercise reminder</label>
+      <input type="time" id="reminderTime">
+    </div>
+    <div style="margin-top:10px"><button class="btn btn-ghost" data-action="save-reminders">💾 Save reminder</button></div>
+
     <div class="section-label" style="margin-top:22px">Backup</div>
     <div class="two">
       <button class="btn btn-ghost" data-action="export-json">⬇️ Save</button>
@@ -369,6 +396,14 @@
   </div>
 </div>
 
+<!-- Workout Mode -->
+<div class="overlay" id="workoutOverlay">
+  <div class="sheet" id="workoutSheet" style="max-height:94vh">
+    <div class="grip"></div>
+    <div id="workoutBody"></div>
+  </div>
+</div>
+
 <script>
 "use strict";
 
@@ -397,6 +432,10 @@ if(!state.dayExercises) state.dayExercises = {};
 if(!state.phases) state.phases = [];
 if(!state.goals) state.goals = [];
 if(!state.measurements) state.measurements = [];
+if(!state.therapist) state.therapist = { name:"", contact:"", notes:"", questions:"" };
+if(!state.appointments) state.appointments = [];
+if(!state.reminders) state.reminders = { exerciseTime:"", enabled:false, lastFired:"", lastApptFired:"" };
+if(state.reminders.lastApptFired===undefined) state.reminders.lastApptFired="";
 let tab = "home";
 let progSel = "all";
 let scheduleEditing = false;
@@ -472,7 +511,10 @@ function defaultState(){
     dayExercises: {},
     phases: [],
     goals: [],
-    measurements: []
+    measurements: [],
+    therapist: { name:"", contact:"", notes:"", questions:"" },
+    appointments: [],
+    reminders: { exerciseTime:"", enabled:false, lastFired:"", lastApptFired:"" }
   };
 }
 
@@ -642,6 +684,69 @@ function independenceSeries(exId){
   }).filter(v=>v!==null);
 }
 
+/* ---------- Advanced stats ---------- */
+function longestStreakEver(){
+  const isos = [...new Set(state.sessions.map(s=>s.date))].sort();
+  if(!isos.length) return 0;
+  let best=1, run=1;
+  for(let i=1;i<isos.length;i++){
+    const prev=parseISO(isos[i-1]), cur=parseISO(isos[i]);
+    const diffDays = Math.round((cur-prev)/86400000);
+    run = diffDays===1 ? run+1 : 1;
+    if(run>best) best=run;
+  }
+  return best;
+}
+function weeklyAdherence(){
+  const sched = getSchedule();
+  const monday = weekStartMonday(new Date());
+  const order=[1,2,3,4,5,6,0];
+  const dates = order.map((d,i)=>{ const x=new Date(monday); x.setDate(monday.getDate()+i); return {day:d, date:x}; });
+  const nonRest = dates.filter(d=>sched[d.day]!=="rest");
+  const done = nonRest.filter(d=>hasSessionOn(isoOf(d.date)));
+  return nonRest.length ? Math.round((done.length/nonRest.length)*100) : 0;
+}
+function assistBreakdown(){
+  const counts={assisted:0,partial:0,independent:0};
+  let total=0;
+  state.sessions.forEach(s=>s.entries.forEach(en=>{ if(counts[en.assist]!==undefined){ counts[en.assist]++; total++; } }));
+  if(!total) return null;
+  return { assisted:Math.round(counts.assisted/total*100), partial:Math.round(counts.partial/total*100), independent:Math.round(counts.independent/total*100) };
+}
+function totalRepsAndSets(){
+  let reps=0, sets=0;
+  state.sessions.forEach(s=>s.entries.forEach(en=>{ reps+=(en.reps||0)*(en.sets||1); sets+=(en.sets||0); }));
+  return { reps, sets };
+}
+function mostImprovedExercise(){
+  const byEx={};
+  sortedSessions().forEach(s=>s.entries.forEach(en=>{
+    if(!byEx[en.exerciseId]) byEx[en.exerciseId]=[];
+    byEx[en.exerciseId].push(en);
+  }));
+  let best=null;
+  Object.keys(byEx).forEach(exId=>{
+    const list=byEx[exId];
+    if(list.length<2) return;
+    const first=list[0], last=list[list.length-1];
+    const firstVol=(first.reps||0)*(first.sets||1), lastVol=(last.reps||0)*(last.sets||1);
+    const delta=lastVol-firstVol;
+    if(!best || delta>best.delta){ best={ exId, delta, firstVol, lastVol }; }
+  });
+  if(!best || best.delta<=0) return null;
+  return { name:exerciseNameOf(best.exId), delta:best.delta, firstVol:best.firstVol, lastVol:best.lastVol };
+}
+function completionRate(){
+  if(!state.sessions.length) return 0;
+  const isos=[...new Set(state.sessions.map(s=>s.date))].sort();
+  const start=parseISO(isos[0]), end=new Date(); end.setHours(0,0,0,0);
+  const totalDays = Math.max(1, Math.round((end-start)/86400000)+1);
+  const sched = getSchedule();
+  let expectedDays=0;
+  for(let i=0;i<totalDays;i++){ const d=new Date(start); d.setDate(start.getDate()+i); if((sched[d.getDay()]||"rest")!=="rest") expectedDays++; }
+  return expectedDays ? Math.min(100, Math.round((isos.length/expectedDays)*100)) : 0;
+}
+
 /* ---------- SVG line chart (no dependencies) ---------- */
 function lineChart(data, opts){
   opts = opts || {};
@@ -706,6 +811,32 @@ function banner(){
   return HAS_LS ? "" : `<div class="banner">📌 Preview mode — data isn't saved here. Download the file and open it on your own device for permanent storage.</div>`;
 }
 
+function goalsAvgProgress(){
+  if(!state.goals.length) return null;
+  const pcts = state.goals.map(g=> g.milestones.length ? (g.milestones.filter(m=>m.done).length/g.milestones.length)*100 : 0);
+  return Math.round(pcts.reduce((a,b)=>a+b,0)/pcts.length);
+}
+function currentActivePhase(){
+  return state.phases.find(p=>p.status==="Active") || null;
+}
+function latestMeasurementTrend(){
+  if(!state.measurements.length) return null;
+  const sorted=[...state.measurements].sort((a,b)=> a.date<b.date?-1:a.date>b.date?1:0);
+  const latest=sorted[sorted.length-1];
+  const key = latest.metric==="custom" ? "custom:"+latest.customName : latest.metric;
+  const sameMetric = sorted.filter(m=> (m.metric==="custom"?"custom:"+m.customName:m.metric)===key);
+  const prev = sameMetric.length>1 ? sameMetric[sameMetric.length-2] : null;
+  const label = latest.metric==="custom" ? latest.customName : (MEASURE_METRICS[latest.metric]||{}).label || latest.metric;
+  return { label, value:latest.value, unit:latest.unit, prevValue: prev?prev.value:null };
+}
+function recoveryScore(){
+  const adherence = weeklyAdherence();
+  const goalsPct = goalsAvgProgress();
+  const parts = [adherence];
+  if(goalsPct!==null) parts.push(goalsPct);
+  return Math.round(parts.reduce((a,b)=>a+b,0)/parts.length);
+}
+
 function viewHome(){
   const streak = currentStreak();
   const dots = last14();
@@ -740,6 +871,37 @@ function viewHome(){
     <div style="margin-top:18px">
       <button class="btn btn-primary" data-action="tab" data-tab="log">✍️ Log today's session</button>
     </div>
+
+    ${(()=>{
+      const score = recoveryScore();
+      const goalsPct = goalsAvgProgress();
+      const adherence = weeklyAdherence();
+      const phase = currentActivePhase();
+      const trend = latestMeasurementTrend();
+      return `
+      <div class="section-label" style="margin-top:30px">📊 Recovery Dashboard</div>
+      <div class="card">
+        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:14px">
+          <span style="font-family:var(--font-display);font-weight:700;font-size:2.2rem;color:var(--violet)">${score}</span>
+          <span style="color:var(--dim);font-size:.85rem">Recovery Score — blend of weekly adherence &amp; goal progress</span>
+        </div>
+        <div class="stats">
+          <div class="stat"><div class="n">${adherence}%</div><div class="l">exercise adherence</div></div>
+          <div class="stat"><div class="n">${goalsPct!==null?goalsPct+"%":"—"}</div><div class="l">goals progress</div></div>
+          <div class="stat"><div class="n">${streak}</div><div class="l">day streak</div></div>
+        </div>
+        <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;justify-content:space-between;font-size:.85rem">
+            <span style="color:var(--dim)">Current phase</span>
+            <span style="font-weight:600">${phase?escapeHtml(phase.name):"None active"}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:.85rem">
+            <span style="color:var(--dim)">Latest measurement</span>
+            <span style="font-weight:600">${trend ? `${escapeHtml(trend.label)}: ${trend.value}${trend.unit?" "+trend.unit:""}${trend.prevValue!==null?(trend.value>trend.prevValue?" ↑":trend.value<trend.prevValue?" ↓":" ="):""}` : "No data yet"}</span>
+          </div>
+        </div>
+      </div>`;
+    })()}
 
     <p class="disclaimer">This app helps you track the exercises set by your doctor or physical therapist. It does not provide medical advice and does not replace your prescribed recovery program.</p>
   `;
@@ -848,6 +1010,11 @@ function viewLog(){
     <p class="view-sub">Check off the exercises done and fill in the details.</p>
 
     <div class="card" style="margin-bottom:8px">
+      <button class="btn btn-primary" data-action="start-workout">⏱️ Start Workout Mode</button>
+      <p style="font-size:.76rem;color:var(--dim-2);margin-top:8px;text-align:center">Guided exercise-by-exercise timer with rest breaks</p>
+    </div>
+
+    <div class="card" style="margin-bottom:8px">
       <div class="field" style="margin-top:0"><label for="sessDate">Date</label><input type="date" id="sessDate" value="${todayISO()}" max="${todayISO()}"></div>
     </div>
 
@@ -933,6 +1100,46 @@ function viewProgress(){
       ${indepStrip}
     </div>
 
+    <div class="section-label">📈 Advanced Progress</div>
+    ${(()=>{
+      const totals = totalRepsAndSets();
+      const breakdown = assistBreakdown();
+      const improved = mostImprovedExercise();
+      const longest = longestStreakEver();
+      const adherence = weeklyAdherence();
+      const rate = completionRate();
+      return `
+      <div class="stats">
+        <div class="stat"><div class="n">${rate}%</div><div class="l">completion rate</div></div>
+        <div class="stat"><div class="n">${adherence}%</div><div class="l">this week's adherence</div></div>
+        <div class="stat"><div class="n">${longest}</div><div class="l">longest streak (days)</div></div>
+        <div class="stat"><div class="n">${totals.reps}</div><div class="l">total reps logged</div></div>
+        <div class="stat"><div class="n">${totals.sets}</div><div class="l">total sets logged</div></div>
+        <div class="stat"><div class="n">${improved?"✓":"—"}</div><div class="l">most improved</div></div>
+      </div>
+      ${breakdown ? `
+      <div class="card" style="margin-top:14px">
+        <div class="section-label" style="margin:0 0 10px">Assisted vs Independent</div>
+        <div style="display:flex;height:12px;border-radius:20px;overflow:hidden">
+          <div style="width:${breakdown.assisted}%;background:var(--red)" title="Assisted ${breakdown.assisted}%"></div>
+          <div style="width:${breakdown.partial}%;background:var(--amber)" title="Partial ${breakdown.partial}%"></div>
+          <div style="width:${breakdown.independent}%;background:var(--green)" title="Independent ${breakdown.independent}%"></div>
+        </div>
+        <div class="legend" style="margin-top:10px">
+          <span><i class="lg-dot" style="background:var(--red)"></i>Assisted ${breakdown.assisted}%</span>
+          <span><i class="lg-dot" style="background:var(--amber)"></i>Partial ${breakdown.partial}%</span>
+          <span><i class="lg-dot" style="background:var(--green)"></i>Independent ${breakdown.independent}%</span>
+        </div>
+      </div>` : ""}
+      ${improved ? `
+      <div class="card" style="margin-top:14px">
+        <div class="section-label" style="margin:0 0 8px">🏆 Most Improved Exercise</div>
+        <div style="font-weight:700;font-family:var(--font-display)">${escapeHtml(improved.name)}</div>
+        <div style="color:var(--dim);font-size:.85rem;margin-top:4px">${improved.firstVol} → ${improved.lastVol} total reps (first vs latest session)</div>
+      </div>` : ""}
+      `;
+    })()}
+
     <div class="section-label">📜 Session History</div>
     ${sortedSessions().slice().reverse().map(s=>`
       <div class="card" style="margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:10px">
@@ -997,8 +1204,42 @@ function viewSchedule(){
       <div style="font-family:var(--font-display);font-weight:700;font-size:1.3rem">${PLAN_TYPES[todayPlan].label}</div>
       <p style="color:var(--dim);font-size:.88rem;margin-top:4px">${todayPlan==="rest" ? "Take today off." : todayExCount+" exercise"+(todayExCount!==1?"s":"")+" suggested for today"}</p>
       ${todayLogged ? `<p style="color:var(--green);font-size:.9rem;margin-top:12px;font-weight:600">✓ Already logged today</p>` :
-        todayPlan!=="rest" ? `<div style="margin-top:14px"><button class="btn btn-primary" data-action="tab" data-tab="log">▶️ Start Today's Program</button></div>` : ""}
+        todayPlan!=="rest" ? `<div style="margin-top:14px"><button class="btn btn-primary" data-action="start-workout">⏱️ Start Today's Program</button></div>` : ""}
     </div>
+
+    ${(()=>{
+      const upcoming = [...state.appointments].filter(a=>a.date>=todayISO()).sort((a,b)=>a.date<b.date?-1:1);
+      const next = upcoming[0];
+      const daysUntil = next ? Math.round((parseISO(next.date)-new Date(new Date().toDateString()))/86400000) : null;
+      return `
+      <div class="section-label">👨‍⚕️ Upcoming Appointments</div>
+      ${next ? `<div class="card" style="margin-bottom:10px;border-color:var(--violet)">
+        <div style="font-weight:700;font-family:var(--font-display)">${next.type==="custom"?escapeHtml(next.customLabel):APPT_TYPES[next.type]}</div>
+        <div style="color:var(--violet);font-size:.85rem;margin-top:2px;font-weight:600">${daysUntil===0?"Today":daysUntil===1?"Tomorrow":daysUntil+" days"} · ${shortDate(next.date)}</div>
+        ${next.notes?`<div style="color:var(--dim);font-size:.82rem;margin-top:6px">${escapeHtml(next.notes)}</div>`:""}
+      </div>` : `<div class="card"><p style="color:var(--dim-2);font-size:.9rem">No upcoming appointments.</p></div>`}
+      ${upcoming.slice(1).map(a=>`
+        <div class="ex-row">
+          <div class="ex-name">${a.type==="custom"?escapeHtml(a.customLabel):APPT_TYPES[a.type]} — ${shortDate(a.date)}${a.notes?` <span style="color:var(--dim-2)">· ${escapeHtml(a.notes)}</span>`:""}</div>
+          <button class="del" data-action="del-appointment" data-id="${a.id}" aria-label="Delete">✕</button>
+        </div>`).join("")}
+      <div class="card" style="margin-top:10px">
+        <div class="field" style="margin-top:0">
+          <label for="newApptType">Type</label>
+          <select id="newApptType">
+            ${Object.keys(APPT_TYPES).map(k=>`<option value="${k}">${APPT_TYPES[k]}</option>`).join("")}
+          </select>
+        </div>
+        <div class="field" id="apptCustomField" style="display:none">
+          <label for="newApptCustom">Custom type</label>
+          <input type="text" id="newApptCustom" placeholder="e.g. MRI scan" autocomplete="off">
+        </div>
+        <div class="field"><label for="newApptDate">Date</label><input type="date" id="newApptDate"></div>
+        <div class="field"><label for="newApptNotes">Notes (optional)</label><input type="text" id="newApptNotes" placeholder="Location, prep…" autocomplete="off"></div>
+        <div style="margin-top:14px"><button class="btn btn-primary" data-action="add-appointment">Add appointment</button></div>
+      </div>
+      `;
+    })()}
 
     <div class="section-label">📊 Weekly Progress</div>
     <div class="card" style="margin-bottom:18px">
@@ -1177,6 +1418,14 @@ function viewGoals(){
     <p class="disclaimer">Set phases and goals together with your doctor or physical therapist — they know your recovery timeline best.</p>
   `;
 }
+
+const APPT_TYPES = {
+  pt: "Physical Therapy",
+  doctor: "Doctor Appointment",
+  assessment: "Assessment",
+  surgery: "Surgery / Procedure",
+  custom: "Custom"
+};
 
 const MEASURE_METRICS = {
   rom: { label:"Range of Motion", unit:"degrees", color:"var(--violet)" },
@@ -1404,6 +1653,15 @@ document.addEventListener("click", e=>{
   }
   else if(a==="close-session"){ closeSession(); }
   else if(a==="save-session"){ saveSession(); }
+  else if(a==="start-workout"){ startWorkout(); }
+  else if(a==="close-workout"){ closeWorkout(); }
+  else if(a==="workout-toggle-pause"){ toggleWorkoutPause(); }
+  else if(a==="workout-complete-set"){ workoutCompleteSet(); }
+  else if(a==="workout-skip-rest"){ workoutSkipRest(); }
+  else if(a==="workout-prev"){ workoutPrevExercise(); }
+  else if(a==="workout-next"){ workoutNextExercise(); }
+  else if(a==="workout-finish-now"){ finishWorkout(); }
+  else if(a==="workout-go-log"){ closeWorkout(); tab="log"; render(); }
   else if(a==="add-phase"){ addPhase(); }
   else if(a==="del-phase"){ delPhase(t.dataset.id); }
   else if(a==="add-goal"){ addGoal(); }
@@ -1414,6 +1672,10 @@ document.addEventListener("click", e=>{
   else if(a==="del-measurement"){ delMeasurement(t.dataset.id); }
   else if(a==="open-settings"){ openSettings(); }
   else if(a==="close-settings"){ closeSettings(); }
+  else if(a==="save-therapist"){ saveTherapist(); }
+  else if(a==="save-reminders"){ saveReminders(); }
+  else if(a==="add-appointment"){ addAppointment(); }
+  else if(a==="del-appointment"){ delAppointment(t.dataset.id); }
   else if(a==="export-csv"){ exportCSV(); }
   else if(a==="export-html"){ exportHTMLReport(); }
   else if(a==="export-json"){ exportJSON(); }
@@ -1460,6 +1722,9 @@ document.addEventListener("change", e=>{
     document.getElementById("customMetricNameField").style.display = isCustom ? "" : "none";
     const unitField = document.getElementById("newMeasureUnit");
     if(!isCustom) unitField.value = MEASURE_METRICS[e.target.value].unit;
+  }
+  if(e.target.id==="newApptType"){
+    document.getElementById("apptCustomField").style.display = e.target.value==="custom" ? "" : "none";
   }
 });
 
@@ -1604,7 +1869,51 @@ function saveSession(){
 }
 
 /* ---------- Settings / export ---------- */
-function openSettings(){ document.getElementById("lic").value=state.settings.license||""; document.getElementById("overlay").classList.add("open"); }
+function openSettings(){
+  document.getElementById("lic").value=state.settings.license||"";
+  document.getElementById("therapistName").value=state.therapist.name||"";
+  document.getElementById("therapistContact").value=state.therapist.contact||"";
+  document.getElementById("therapistNotes").value=state.therapist.notes||"";
+  document.getElementById("therapistQuestions").value=state.therapist.questions||"";
+  document.getElementById("reminderTime").value=state.reminders.exerciseTime||"";
+  document.getElementById("overlay").classList.add("open");
+}
+function saveTherapist(){
+  state.therapist = {
+    name:(document.getElementById("therapistName").value||"").trim(),
+    contact:(document.getElementById("therapistContact").value||"").trim(),
+    notes:(document.getElementById("therapistNotes").value||"").trim(),
+    questions:(document.getElementById("therapistQuestions").value||"").trim()
+  };
+  persist(); toast("Therapist info saved");
+}
+function addAppointment(){
+  const type=document.getElementById("newApptType").value;
+  const isCustom=type==="custom";
+  const customLabel=(document.getElementById("newApptCustom").value||"").trim();
+  if(isCustom && !customLabel){ toast("Enter a custom appointment type"); return; }
+  const date=document.getElementById("newApptDate").value;
+  if(!date){ toast("Pick a date"); return; }
+  const notes=(document.getElementById("newApptNotes").value||"").trim();
+  const appt={ id:uid(), type, date, notes };
+  if(isCustom) appt.customLabel=customLabel;
+  state.appointments.push(appt);
+  persist(); render(); toast("Appointment added");
+}
+function delAppointment(id){
+  state.appointments=state.appointments.filter(a=>a.id!==id);
+  persist(); render();
+}
+function saveReminders(){
+  const time=document.getElementById("reminderTime").value||"";
+  state.reminders.exerciseTime = time;
+  if(time && "Notification" in window && Notification.permission==="default"){
+    Notification.requestPermission();
+  }
+  state.reminders.enabled = !!time;
+  persist();
+  toast(time ? "Reminder set for "+time : "Reminder cleared");
+}
 function closeSettings(){
   const v=document.getElementById("lic").value.trim();
   if(v!==(state.settings.license||"")){ state.settings.license=v; persist(); }
@@ -1915,6 +2224,170 @@ function toast(msg){
   const el=document.getElementById("toast"); el.textContent=msg; el.classList.add("show");
   clearTimeout(toastT); toastT=setTimeout(()=>el.classList.remove("show"),1900);
 }
+
+/* ---------- Workout Mode ---------- */
+let workoutState = null;
+
+function formatDuration(totalSec){
+  const m = Math.floor(totalSec/60), s = totalSec%60;
+  return String(m).padStart(2,"0")+":"+String(s).padStart(2,"0");
+}
+function startWorkout(){
+  const todayIdx = new Date().getDay();
+  let exercises = exercisesForDay(todayIdx);
+  if(!exercises.length) exercises = state.exercises;
+  if(!exercises.length){ toast("Add exercises in Program first"); return; }
+
+  workoutState = {
+    exercises, index:0, setNum:1, totalSets:3, restSeconds:30,
+    elapsedSec:0, restRemaining:0, resting:false, paused:false, finished:false,
+    timerId:null
+  };
+  workoutState.timerId = setInterval(workoutTick, 1000);
+  renderWorkoutBody();
+  document.getElementById("workoutOverlay").classList.add("open");
+}
+function workoutTick(){
+  if(!workoutState || workoutState.paused || workoutState.finished) return;
+  if(workoutState.resting){
+    workoutState.restRemaining--;
+    if(workoutState.restRemaining<=0) workoutState.resting=false;
+  } else {
+    workoutState.elapsedSec++;
+  }
+  renderWorkoutBody();
+}
+function toggleWorkoutPause(){
+  if(!workoutState) return;
+  workoutState.paused = !workoutState.paused;
+  renderWorkoutBody();
+}
+function workoutCompleteSet(){
+  if(!workoutState || workoutState.resting) return;
+  if(workoutState.setNum < workoutState.totalSets){
+    workoutState.setNum++;
+    workoutState.resting = true;
+    workoutState.restRemaining = workoutState.restSeconds;
+  } else {
+    workoutAdvanceExercise();
+  }
+  renderWorkoutBody();
+}
+function workoutSkipRest(){
+  if(!workoutState) return;
+  workoutState.resting = false;
+  workoutState.restRemaining = 0;
+  renderWorkoutBody();
+}
+function workoutAdvanceExercise(){
+  if(!workoutState) return;
+  if(workoutState.index < workoutState.exercises.length-1){
+    workoutState.index++;
+    workoutState.setNum = 1;
+    workoutState.resting = false;
+  } else {
+    finishWorkout();
+  }
+}
+function workoutNextExercise(){
+  if(!workoutState) return;
+  workoutState.resting = false;
+  workoutAdvanceExercise();
+  renderWorkoutBody();
+}
+function workoutPrevExercise(){
+  if(!workoutState) return;
+  workoutState.index = Math.max(0, workoutState.index-1);
+  workoutState.setNum = 1;
+  workoutState.resting = false;
+  renderWorkoutBody();
+}
+function finishWorkout(){
+  if(!workoutState) return;
+  workoutState.finished = true;
+  renderWorkoutBody();
+}
+function closeWorkout(){
+  if(workoutState && workoutState.timerId) clearInterval(workoutState.timerId);
+  workoutState = null;
+  document.getElementById("workoutOverlay").classList.remove("open");
+}
+function renderWorkoutBody(){
+  const body = document.getElementById("workoutBody");
+  if(!workoutState || !body) return;
+  const ws = workoutState;
+
+  if(ws.finished){
+    body.innerHTML = `
+      <h2>🎉 Workout complete!</h2>
+      <div class="card hero" style="margin-top:16px">
+        <div class="streak-num">${formatDuration(ws.elapsedSec)}</div>
+        <div class="streak-label">total time</div>
+        <p class="streak-cap">${ws.index+1} of ${ws.exercises.length} exercises worked through. Nice work.</p>
+      </div>
+      <div class="row" style="margin-top:18px;display:flex;gap:10px">
+        <button class="btn btn-ghost" data-action="close-workout" style="flex:1">Close</button>
+        <button class="btn btn-primary" data-action="workout-go-log" style="flex:1">📝 Go log this session</button>
+      </div>`;
+    return;
+  }
+
+  const ex = ws.exercises[ws.index];
+  body.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <span class="section-label" style="margin:0">Exercise ${ws.index+1} of ${ws.exercises.length}</span>
+      <button class="icon-btn" data-action="close-workout" aria-label="Close" style="width:36px;height:36px">✕</button>
+    </div>
+    <h2 style="margin-top:10px">${limbEmoji(ex.limb)} ${escapeHtml(ex.name)}</h2>
+    <button class="btn btn-ghost sm" data-action="watch-ex" data-id="${ex.id}" style="margin-top:8px">▶ How to do it</button>
+
+    <div class="card hero" style="margin-top:16px">
+      ${ws.resting ? `
+        <div class="streak-num" style="color:var(--amber)">${formatDuration(ws.restRemaining)}</div>
+        <div class="streak-label">rest — get ready for set ${ws.setNum}</div>
+      ` : `
+        <div class="streak-num">${ws.setNum}<span style="font-size:1.6rem;color:var(--dim)"> / ${ws.totalSets}</span></div>
+        <div class="streak-label">set</div>
+      `}
+      <p class="streak-cap">Total time: ${formatDuration(ws.elapsedSec)} ${ws.paused?"· ⏸ Paused":""}</p>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:16px">
+      ${ws.resting
+        ? `<button class="btn btn-primary" data-action="workout-skip-rest" style="flex:1">Skip rest</button>`
+        : `<button class="btn btn-primary" data-action="workout-complete-set" style="flex:1">✓ ${ws.setNum<ws.totalSets?"Set done":"Finish exercise"}</button>`}
+      <button class="btn btn-ghost" data-action="workout-toggle-pause" style="flex:1">${ws.paused?"▶ Resume":"⏸ Pause"}</button>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:10px">
+      <button class="btn btn-line" data-action="workout-prev" style="flex:1" ${ws.index===0?"disabled":""}>‹ Previous</button>
+      <button class="btn btn-line" data-action="workout-next" style="flex:1">Next exercise ›</button>
+    </div>
+
+    <div style="margin-top:16px"><button class="btn btn-ghost sm" data-action="workout-finish-now" style="width:100%;color:var(--red)">End workout</button></div>
+  `;
+}
+
+/* ---------- Reminders check loop (only fires while this tab is open) ---------- */
+function checkReminders(){
+  if(!("Notification" in window) || Notification.permission!=="granted") return;
+  const now=new Date();
+  const nowTime=String(now.getHours()).padStart(2,"0")+":"+String(now.getMinutes()).padStart(2,"0");
+  const today=todayISO();
+
+  if(state.reminders.enabled && state.reminders.exerciseTime && state.reminders.exerciseTime===nowTime && state.reminders.lastFired!==today){
+    new Notification("Time for your exercises 💪", { body:"Open Recovery to log today's session.", tag:"recovery-exercise" });
+    state.reminders.lastFired=today; persist();
+  }
+
+  const todaysAppt = state.appointments.find(a=>a.date===today);
+  if(todaysAppt && state.reminders.lastApptFired!==today){
+    const label = todaysAppt.type==="custom" ? todaysAppt.customLabel : APPT_TYPES[todaysAppt.type];
+    new Notification("Appointment today: "+label, { body:todaysAppt.notes||"", tag:"recovery-appointment" });
+    state.reminders.lastApptFired=today; persist();
+  }
+}
+setInterval(checkReminders, 30000);
 
 /* ---------- Init ---------- */
 render();
