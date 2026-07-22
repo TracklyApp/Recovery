@@ -219,7 +219,7 @@
 
 <header class="app">
   <div class="wrap app-bar">
-    <div class="brand"><span class="mark"><svg viewBox="0 0 512 512" width="18" height="18" aria-hidden="true"><path d="M96 272 h64 l24 -64 l40 96 l32 -160 l36 128 l20 -48 h96" fill="none" stroke="#fff" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/></svg></span> Recovery</div>
+    <div class="brand"><span class="mark"><svg viewBox="0 0 512 512" width="18" height="18" aria-hidden="true"><path d="M96 272 h64 l24 -64 l40 96 l32 -160 l36 128 l20 -48 h96" fill="none" stroke="#fff" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/></svg></span> <span id="brandName">Recovery</span></div>
     <button class="icon-btn" data-action="open-settings" aria-label="Settings">⚙️</button>
   </div>
 </header>
@@ -289,6 +289,7 @@
     </div>
 
     <div class="section-label" style="margin-top:22px">Data</div>
+    <button class="btn btn-line" data-action="change-journey" style="margin-bottom:10px">🔄 Change Recovery Type</button>
     <button class="btn btn-line" data-action="seed-demo" style="margin-bottom:10px">✨ Add demo data</button>
     <button class="btn btn-line danger" data-action="reset-all">🗑️ Delete everything</button>
 
@@ -512,7 +513,8 @@ function defaultState(){
     measurements: [],
     therapist: { name:"", contact:"", notes:"", questions:"" },
     appointments: [],
-    reminders: { exerciseTime:"", enabled:false, lastFired:"", lastApptFired:"" }
+    reminders: { exerciseTime:"", enabled:false, lastFired:"", lastApptFired:"" },
+    journey: null
   };
 }
 
@@ -792,8 +794,10 @@ function lineChart(data, opts){
 
 /* ---------- Views ---------- */
 function render(){
+  updateBrand();
   document.querySelectorAll(".tab").forEach(t=> t.classList.toggle("active", t.dataset.tab===tab));
   const el = document.getElementById("view");
+  if(!state.journey){ el.innerHTML = viewOnboarding(); window.scrollTo({top:0,behavior:"instant"}); return; }
   if(tab==="home") el.innerHTML = viewHome();
   else if(tab==="program") el.innerHTML = viewProgram();
   else if(tab==="log") el.innerHTML = viewLog();
@@ -833,6 +837,69 @@ function recoveryScore(){
   const parts = [adherence];
   if(goalsPct!==null) parts.push(goalsPct);
   return Math.round(parts.reduce((a,b)=>a+b,0)/parts.length);
+}
+
+let showCustomJourneyInput = false;
+
+function viewOnboarding(){
+  const card = (key) => {
+    const info = JOURNEY_TYPES[key];
+    return `
+      <button class="card" data-action="pick-journey" data-type="${key}" style="width:100%;text-align:left;cursor:pointer;border:1px solid var(--border);margin-bottom:10px;display:block;font:inherit;color:inherit;appearance:none;-webkit-appearance:none">
+        <div style="display:flex;align-items:center;gap:14px">
+          <span style="font-size:1.6rem">${info.emoji}</span>
+          <div>
+            <div style="font-weight:700;font-family:var(--font-display)">${info.label}</div>
+            <div style="color:var(--dim);font-size:.82rem;margin-top:2px">${info.desc}</div>
+          </div>
+        </div>
+      </button>`;
+  };
+  return `
+    <p class="view-title">Create Recovery Journey</p>
+    <p class="view-sub">Choose the type of recovery you're tracking. You can change this anytime in Settings.</p>
+
+    <div class="section-label">Recovery Type</div>
+    ${["surgery","sports","physio","chronic","general"].map(card).join("")}
+
+    <button class="card" data-action="show-custom-journey" style="width:100%;text-align:left;cursor:pointer;border:1px solid var(--border);margin-bottom:10px;display:block;font:inherit;color:inherit;appearance:none;-webkit-appearance:none">
+      <div style="display:flex;align-items:center;gap:14px">
+        <span style="font-size:1.6rem">✏️</span>
+        <div>
+          <div style="font-weight:700;font-family:var(--font-display)">Custom</div>
+          <div style="color:var(--dim);font-size:.82rem;margin-top:2px">Name your own recovery journey</div>
+        </div>
+      </div>
+    </button>
+
+    ${showCustomJourneyInput ? `
+      <div class="card">
+        <div class="field" style="margin-top:0">
+          <label for="customJourneyName">Journey name</label>
+          <input type="text" id="customJourneyName" placeholder="e.g. Knee Replacement Recovery" autocomplete="off">
+        </div>
+        <div style="margin-top:14px"><button class="btn btn-primary" data-action="confirm-custom-journey">Create Recovery Journey</button></div>
+      </div>` : ""}
+
+    <p class="disclaimer">This just personalizes the app's name and welcome screen — every feature (Program, Log, Progress, Schedule, Goals, Measurements) works the same regardless of type.</p>
+  `;
+}
+function pickJourney(typeKey){
+  const info = JOURNEY_TYPES[typeKey];
+  state.journey = { type:typeKey, name:info.defaultName };
+  persist(); render(); toast("Welcome to "+info.defaultName);
+}
+function confirmCustomJourney(){
+  const name=(document.getElementById("customJourneyName").value||"").trim();
+  if(!name){ toast("Enter a name for your journey"); return; }
+  state.journey = { type:"custom", name };
+  showCustomJourneyInput=false;
+  persist(); render(); toast("Welcome to "+name);
+}
+function updateBrand(){
+  const el = document.getElementById("brandName");
+  if(el) el.textContent = state.journey ? state.journey.name : "Recovery";
+  document.title = (state.journey ? state.journey.name : "Recovery") + " · Exercise Journal";
 }
 
 function viewHome(){
@@ -1417,6 +1484,15 @@ function viewGoals(){
   `;
 }
 
+const JOURNEY_TYPES = {
+  surgery:  { emoji:"🩹", label:"Surgery",          defaultName:"Post-Surgery Recovery",   desc:"Recovering from an operation or procedure" },
+  sports:   { emoji:"🏃", label:"Sports Injury",     defaultName:"Sports Injury Recovery",  desc:"Rehabbing a sports or athletic injury" },
+  physio:   { emoji:"🧑‍⚕️", label:"Physiotherapy",    defaultName:"Physiotherapy Tracking",  desc:"Ongoing physiotherapy program tracking" },
+  chronic:  { emoji:"🕯️", label:"Chronic Pain",      defaultName:"Chronic Pain Journal",    desc:"Managing and journaling chronic pain" },
+  general:  { emoji:"🚶", label:"General Recovery",  defaultName:"Mobility Recovery",       desc:"General mobility and strength recovery" },
+  custom:   { emoji:"✏️", label:"Custom",            defaultName:"",                        desc:"Name your own recovery journey" }
+};
+
 const APPT_TYPES = {
   pt: "Physical Therapy",
   doctor: "Doctor Appointment",
@@ -1652,6 +1728,10 @@ document.addEventListener("click", e=>{
   else if(a==="close-session"){ closeSession(); }
   else if(a==="save-session"){ saveSession(); }
   else if(a==="start-workout"){ startWorkout(); }
+  else if(a==="pick-journey"){ pickJourney(t.dataset.type); }
+  else if(a==="show-custom-journey"){ showCustomJourneyInput=true; render(); }
+  else if(a==="confirm-custom-journey"){ confirmCustomJourney(); }
+  else if(a==="change-journey"){ closeSettings(); state.journey=null; render(); }
   else if(a==="close-workout"){ closeWorkout(); }
   else if(a==="workout-toggle-pause"){ toggleWorkoutPause(); }
   else if(a==="workout-complete-set"){ workoutCompleteSet(); }
