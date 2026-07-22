@@ -443,66 +443,66 @@ let calendarMonth = (()=>{ const d=new Date(); d.setDate(1); d.setHours(0,0,0,0)
 function defaultState(){
   return {
     exercises: [
-      { id: uid(), name:"Seated knee flexion", limb:"leg" },
-      { id: uid(), name:"Heel raises", limb:"leg" },
-      { id: uid(), name:"Leg extension", limb:"leg" },
-      { id: uid(), name:"Knee stretches", limb:"leg" },
-      { id: uid(), name:"Knee strengthening", limb:"leg" },
-      { id: uid(), name:"Hip & knee strengthening", limb:"leg" },
-      { id: uid(), name:"Straight leg raise (seated)", limb:"leg" },
-      { id: uid(), name:"Ankle rotations", limb:"leg" },
-      { id: uid(), name:"Toe flexion & extension", limb:"leg" },
-      { id: uid(), name:"Heel slides", limb:"leg" },
-      { id: uid(), name:"Toe raises", limb:"leg" },
-      { id: uid(), name:"Mini squats (with support)", limb:"leg" },
-      { id: uid(), name:"Lateral step with support", limb:"leg" },
-      { id: uid(), name:"Weight shift side to side", limb:"leg" },
-      { id: uid(), name:"Single leg stance with support", limb:"leg" },
-      { id: uid(), name:"Walking with small obstacles", limb:"leg" },
-      { id: uid(), name:"Step up / step down (low step)", limb:"leg" },
-      { id: uid(), name:"Heel walking / toe walking", limb:"leg" },
-      { id: uid(), name:"Knee extension with resistance band", limb:"leg" },
-      { id: uid(), name:"Hip abduction (side-lying)", limb:"leg" },
-      { id: uid(), name:"Bridge (hip / glute)", limb:"leg" },
-      { id: uid(), name:"Leg press (with equipment)", limb:"leg" },
-      { id: uid(), name:"Soft ball squeeze", limb:"hand" },
-      { id: uid(), name:"Finger flexion & extension", limb:"hand" },
-      { id: uid(), name:"Wrist rotations", limb:"hand" },
-      { id: uid(), name:"Finger, hand & wrist stretches", limb:"hand" },
-      { id: uid(), name:"Hand grip strengthening", limb:"hand" },
-      { id: uid(), name:"Thumb-to-finger opposition", limb:"hand" },
-      { id: uid(), name:"Wrist flexion & extension with light weight", limb:"hand" },
-      { id: uid(), name:"Shoulder flexion (arm raise forward)", limb:"hand" },
-      { id: uid(), name:"Shoulder abduction (arm raise sideways)", limb:"hand" },
-      { id: uid(), name:"Elbow flexion (bicep curl)", limb:"hand" },
-      { id: uid(), name:"Elbow extension", limb:"hand" },
-      { id: uid(), name:"Shoulder rotations (circles)", limb:"hand" },
-      { id: uid(), name:"Overhead reach", limb:"hand" },
-      { id: uid(), name:"Grasp-release small objects", limb:"hand" },
-      { id: uid(), name:"Object transfer between containers", limb:"hand" },
-      { id: uid(), name:"Jar lid twist (simulated)", limb:"hand" },
-      { id: uid(), name:"Writing / drawing for fine motor control", limb:"hand" },
-      { id: uid(), name:"Shoulder rolls", limb:"hand" },
-      { id: uid(), name:"Elbow bends", limb:"hand" },
-      { id: uid(), name:"Arm raises (forward, both arms)", limb:"hand" },
-      { id: uid(), name:"Wall push-ups", limb:"hand" },
-      { id: uid(), name:"Shoulder blade squeeze", limb:"hand" },
-      { id: uid(), name:"Arm stretch", limb:"hand" },
-      { id: uid(), name:"Ankle pumps (up/down)", limb:"leg" },
-      { id: uid(), name:"Seated knee lifts", limb:"leg" },
-      { id: uid(), name:"Side leg raises (standing)", limb:"leg" },
-      { id: uid(), name:"Back leg raises (standing)", limb:"leg" },
-      { id: uid(), name:"Alternating knee lifts (standing)", limb:"leg" },
-      { id: uid(), name:"Marching in place", limb:"leg" },
-      { id: uid(), name:"Calf stretch", limb:"leg" },
-      { id: uid(), name:"Quadriceps stretch", limb:"leg" },
-      { id: uid(), name:"Neck turns", limb:"body" },
-      { id: uid(), name:"Seated trunk rotations", limb:"body" },
-      { id: uid(), name:"Side bends", limb:"body" },
-      { id: uid(), name:"Standing with feet together", limb:"body" },
-      { id: uid(), name:"Heel-to-toe walking", limb:"body" },
-      { id: uid(), name:"Walking forward and backward", limb:"body" },
-      { id: uid(), name:"Breathing exercise", limb:"body" }
+      { id: uid(), name:"Seated knee flexion", limb:"leg", tags:["surgery","physio"] },
+      { id: uid(), name:"Heel raises", limb:"leg", tags:["sports","general"] },
+      { id: uid(), name:"Leg extension", limb:"leg", tags:["surgery","physio"] },
+      { id: uid(), name:"Knee stretches", limb:"leg", tags:["physio","chronic"] },
+      { id: uid(), name:"Knee strengthening", limb:"leg", tags:["sports","physio"] },
+      { id: uid(), name:"Hip & knee strengthening", limb:"leg", tags:["sports","physio"] },
+      { id: uid(), name:"Straight leg raise (seated)", limb:"leg", tags:["surgery"] },
+      { id: uid(), name:"Ankle rotations", limb:"leg", tags:["surgery","chronic","general"] },
+      { id: uid(), name:"Toe flexion & extension", limb:"leg", tags:["surgery","general"] },
+      { id: uid(), name:"Heel slides", limb:"leg", tags:["surgery"] },
+      { id: uid(), name:"Toe raises", limb:"leg", tags:["general"] },
+      { id: uid(), name:"Mini squats (with support)", limb:"leg", tags:["sports","general"] },
+      { id: uid(), name:"Lateral step with support", limb:"leg", tags:["sports"] },
+      { id: uid(), name:"Weight shift side to side", limb:"leg", tags:["chronic","general"] },
+      { id: uid(), name:"Single leg stance with support", limb:"leg", tags:["sports","general"] },
+      { id: uid(), name:"Walking with small obstacles", limb:"leg", tags:["general"] },
+      { id: uid(), name:"Step up / step down (low step)", limb:"leg", tags:["sports","general"] },
+      { id: uid(), name:"Heel walking / toe walking", limb:"leg", tags:["general"] },
+      { id: uid(), name:"Knee extension with resistance band", limb:"leg", tags:["sports","physio"] },
+      { id: uid(), name:"Hip abduction (side-lying)", limb:"leg", tags:["sports"] },
+      { id: uid(), name:"Bridge (hip / glute)", limb:"leg", tags:["surgery","sports"] },
+      { id: uid(), name:"Leg press (with equipment)", limb:"leg", tags:["sports"] },
+      { id: uid(), name:"Soft ball squeeze", limb:"hand", tags:["surgery","physio"] },
+      { id: uid(), name:"Finger flexion & extension", limb:"hand", tags:["surgery","physio"] },
+      { id: uid(), name:"Wrist rotations", limb:"hand", tags:["physio","chronic"] },
+      { id: uid(), name:"Finger, hand & wrist stretches", limb:"hand", tags:["chronic","physio"] },
+      { id: uid(), name:"Hand grip strengthening", limb:"hand", tags:["sports","physio"] },
+      { id: uid(), name:"Thumb-to-finger opposition", limb:"hand", tags:["surgery"] },
+      { id: uid(), name:"Wrist flexion & extension with light weight", limb:"hand", tags:["surgery","sports"] },
+      { id: uid(), name:"Shoulder flexion (arm raise forward)", limb:"hand", tags:["surgery","physio"] },
+      { id: uid(), name:"Shoulder abduction (arm raise sideways)", limb:"hand", tags:["surgery","physio"] },
+      { id: uid(), name:"Elbow flexion (bicep curl)", limb:"hand", tags:["surgery","sports"] },
+      { id: uid(), name:"Elbow extension", limb:"hand", tags:["surgery"] },
+      { id: uid(), name:"Shoulder rotations (circles)", limb:"hand", tags:["chronic","physio"] },
+      { id: uid(), name:"Overhead reach", limb:"hand", tags:["surgery"] },
+      { id: uid(), name:"Grasp-release small objects", limb:"hand", tags:["surgery"] },
+      { id: uid(), name:"Object transfer between containers", limb:"hand", tags:["surgery"] },
+      { id: uid(), name:"Jar lid twist (simulated)", limb:"hand", tags:["surgery"] },
+      { id: uid(), name:"Writing / drawing for fine motor control", limb:"hand", tags:["surgery"] },
+      { id: uid(), name:"Shoulder rolls", limb:"hand", tags:["chronic","general"] },
+      { id: uid(), name:"Elbow bends", limb:"hand", tags:["general"] },
+      { id: uid(), name:"Arm raises (forward, both arms)", limb:"hand", tags:["general"] },
+      { id: uid(), name:"Wall push-ups", limb:"hand", tags:["sports"] },
+      { id: uid(), name:"Shoulder blade squeeze", limb:"hand", tags:["sports","physio"] },
+      { id: uid(), name:"Arm stretch", limb:"hand", tags:["chronic","physio"] },
+      { id: uid(), name:"Ankle pumps (up/down)", limb:"leg", tags:["surgery","general"] },
+      { id: uid(), name:"Seated knee lifts", limb:"leg", tags:["surgery","general"] },
+      { id: uid(), name:"Side leg raises (standing)", limb:"leg", tags:["sports"] },
+      { id: uid(), name:"Back leg raises (standing)", limb:"leg", tags:["sports"] },
+      { id: uid(), name:"Alternating knee lifts (standing)", limb:"leg", tags:["sports","general"] },
+      { id: uid(), name:"Marching in place", limb:"leg", tags:["general"] },
+      { id: uid(), name:"Calf stretch", limb:"leg", tags:["chronic","general"] },
+      { id: uid(), name:"Quadriceps stretch", limb:"leg", tags:["chronic","physio"] },
+      { id: uid(), name:"Neck turns", limb:"body", tags:["chronic","physio"] },
+      { id: uid(), name:"Seated trunk rotations", limb:"body", tags:["chronic","physio"] },
+      { id: uid(), name:"Side bends", limb:"body", tags:["chronic"] },
+      { id: uid(), name:"Standing with feet together", limb:"body", tags:["general","chronic"] },
+      { id: uid(), name:"Heel-to-toe walking", limb:"body", tags:["general"] },
+      { id: uid(), name:"Walking forward and backward", limb:"body", tags:["general"] },
+      { id: uid(), name:"Breathing exercise", limb:"body", tags:["chronic","surgery"] }
     ],
     sessions: [],
     settings: { license:"" },
@@ -881,7 +881,7 @@ function viewOnboarding(){
         <div style="margin-top:14px"><button class="btn btn-primary" data-action="confirm-custom-journey">Create Recovery Journey</button></div>
       </div>` : ""}
 
-    <p class="disclaimer">This just personalizes the app's name and welcome screen — every feature (Program, Log, Progress, Schedule, Goals, Measurements) works the same regardless of type.</p>
+    <p class="disclaimer">This personalizes the app's name and highlights exercises in the library that are commonly recommended for your type — every feature (Program, Log, Progress, Schedule, Goals, Measurements) still works the same regardless of type.</p>
   `;
 }
 function pickJourney(typeKey){
@@ -972,6 +972,12 @@ function viewHome(){
   `;
 }
 
+function isRecommended(e){
+  return !!(state.journey && state.journey.type!=="custom" && e.tags && e.tags.includes(state.journey.type));
+}
+function recommendedBadge(e){
+  return isRecommended(e) ? `<span style="color:var(--violet);font-size:.68rem;font-weight:700;white-space:nowrap;margin-left:8px">⭐ Recommended for ${JOURNEY_TYPES[state.journey.type].label}</span>` : "";
+}
 function viewProgram(){
   const legs = state.exercises.filter(e=>e.limb==="leg");
   const hands = state.exercises.filter(e=>e.limb==="hand");
@@ -981,7 +987,7 @@ function viewProgram(){
     <div class="card" style="padding:6px 14px">
       ${list.length ? list.map(e=>`
         <div class="ex-row">
-          <div class="ex-name">${escapeHtml(e.name)}</div>
+          <div class="ex-name">${escapeHtml(e.name)}${recommendedBadge(e)}</div>
           <button class="del play" data-action="watch-ex" data-id="${e.id}" aria-label="Watch demo" title="Watch how it's done">▶</button>
           <button class="del" data-action="edit-ex" data-id="${e.id}" aria-label="Edit" title="Edit exercise">✏️</button>
           <button class="del" data-action="del-ex" data-id="${e.id}" aria-label="Delete">✕</button>
@@ -2114,14 +2120,15 @@ function openLibrary(){
     list.innerHTML = `<p style="color:var(--dim-2);font-size:.9rem;padding:8px 2px">Every library exercise is already in your Program.</p>`;
   } else {
     const group = (title, emoji, limb) => {
-      const items = avail.filter(e=>e.limb===limb);
+      const items = avail.filter(e=>e.limb===limb)
+        .sort((a,b)=> (isRecommended(b)?1:0)-(isRecommended(a)?1:0));
       if(!items.length) return "";
       return `<div class="section-label" style="margin-top:18px">${emoji} ${title}</div>
         <div class="card" style="padding:6px 14px">
           ${items.map(e=>`
             <label class="ex-row" style="cursor:pointer">
-              <input type="checkbox" class="lib-check" value="${escapeHtml(e.name)}" data-limb="${e.limb}" style="width:20px;height:20px;flex-shrink:0">
-              <div class="ex-name">${escapeHtml(e.name)}</div>
+              <input type="checkbox" class="lib-check" value="${escapeHtml(e.name)}" data-limb="${e.limb}" data-tags="${(e.tags||[]).join(",")}" style="width:20px;height:20px;flex-shrink:0">
+              <div class="ex-name">${escapeHtml(e.name)}${recommendedBadge(e)}</div>
             </label>`).join("")}
         </div>`;
     };
@@ -2134,7 +2141,10 @@ function addLibrarySelected(){
   const checked = [...document.querySelectorAll(".lib-check:checked")];
   if(!checked.length){ toast("Select at least one exercise"); return; }
   checked.forEach(cb=>{
-    state.exercises.push({ id: uid(), name: cb.value, limb: cb.dataset.limb });
+    const tags = cb.dataset.tags ? cb.dataset.tags.split(",").filter(Boolean) : [];
+    const ex = { id: uid(), name: cb.value, limb: cb.dataset.limb };
+    if(tags.length) ex.tags = tags;
+    state.exercises.push(ex);
   });
   persist(); closeLibrary(); render();
   toast(checked.length+" exercise"+(checked.length>1?"s":"")+" added");
